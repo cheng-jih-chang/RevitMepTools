@@ -25,7 +25,31 @@ namespace RevitAddinHost
                 "RevitAddinHost.Commands.Button1"
             );
 
+            var b2 = new PushButtonData(
+                "Btn2", WrapText("Button 2"), assemblyPath,
+                "RevitAddinHost.Commands.Button2"
+            );
+
+            var b3 = new PushButtonData(
+                "Btn3", WrapText("Button 3"), assemblyPath,
+                "RevitAddinHost.Commands.Button3"
+            );
+
+            var b4 = new PushButtonData(
+                "Btn4", WrapText("Button 4"), assemblyPath,
+                "RevitAddinHost.Commands.Button4"
+            );
+
+            var b5 = new PushButtonData(
+                "Btn5", WrapText("Button 5"), assemblyPath,
+                "RevitAddinHost.Commands.Button5"
+            );
+
             panel.AddItem(b1);
+            panel.AddItem(b2);
+            panel.AddItem(b3);
+            panel.AddItem(b4);
+            panel.AddItem(b5);
             return Result.Succeeded;
         }
 
