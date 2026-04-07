@@ -5,14 +5,14 @@ using System.Text;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
 
-namespace RevitAddinHost
+namespace RevitMepAddinHost
 {
     public class App : IExternalApplication
     {
         public Result OnStartup(UIControlledApplication application)
         {
-            const string tabName = "RevitAddinHotReload_v0.1.1";
-            const string panelName = "HotReload_v0.1.1";
+            const string tabName = "Cheng's Mep Tools_v0.1.1";
+            const string panelName = "annotation_v0.1.1";
 
             try { application.CreateRibbonTab(tabName); } catch { }
 
