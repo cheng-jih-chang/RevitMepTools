@@ -2,10 +2,10 @@ using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 
-namespace RevitAddinHost.Commands
+namespace RevitMepAddinHost.Commands
 {
     [Transaction(TransactionMode.Manual)]
-    public class Button2 : IExternalCommand
+    public class Button5 : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -13,15 +13,15 @@ namespace RevitAddinHost.Commands
             {
                 var uiapp = commandData.Application;
 
-                object result = Loader.Call("RevitLogic.EntryPoints.Button2Entry.Run", uiapp);
+                object result = Loader.Call("RevitMepLogic.EntryPoints.Button5Entry.Run", uiapp);
                 string text = result?.ToString() ?? "";
 
-                TaskDialog.Show("Button2", text);
+                TaskDialog.Show("Button5", text);
                 return Result.Succeeded;
             }
             catch (System.Exception ex)
             {
-                TaskDialog.Show("Button2 - Error", ex.ToString());
+                TaskDialog.Show("Button5 - Error", ex.ToString());
                 return Result.Failed;
             }
         }

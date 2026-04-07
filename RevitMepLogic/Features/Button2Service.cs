@@ -1,6 +1,6 @@
 using Autodesk.Revit.UI;
 
-namespace RevitLogic.Features.Button2
+namespace RevitMepLogic.Features
 {
     public class Button2Service
     {

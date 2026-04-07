@@ -1,6 +1,6 @@
 # build.ps1
 # Purpose:
-# Build RevitLogic and copy the output files to .\dist\
+# Build RevitMepLogic and copy the output files to .\dist\
 # so RevitAddinHost can load the updated logic assembly.
 #
 # Usage:
@@ -8,14 +8,14 @@
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== BUILD RevitLogic ==="
-dotnet build .\RevitLogic\RevitLogic.csproj -v minimal
+Write-Host "=== BUILD RevitMepLogic ==="
+dotnet build .\RevitMepLogic\RevitMepLogic.csproj -v minimal
 
-$srcDll = ".\RevitLogic\bin\Debug\net48\RevitLogic.dll"
-$srcPdb = ".\RevitLogic\bin\Debug\net48\RevitLogic.pdb"
+$srcDll = ".\RevitMepLogic\bin\Debug\net48\RevitMepLogic.dll"
+$srcPdb = ".\RevitMepLogic\bin\Debug\net48\RevitMepLogic.pdb"
 $distDir = ".\dist"
-$dstDll = Join-Path $distDir "RevitLogic.dll"
-$dstPdb = Join-Path $distDir "RevitLogic.pdb"
+$dstDll = Join-Path $distDir "RevitMepLogic.dll"
+$dstPdb = Join-Path $distDir "RevitMepLogic.pdb"
 
 if (!(Test-Path $srcDll)) {
     throw "Source DLL not found: $srcDll"
@@ -48,4 +48,4 @@ Write-Host "=== AFTER COPY ==="
 (Get-Item $dstDll).LastWriteTime
 Get-FileHash $dstDll
 
-Write-Host "RevitLogic updated"
+Write-Host "RevitMepLogic updated"

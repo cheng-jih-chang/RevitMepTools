@@ -1,7 +1,7 @@
 using Autodesk.Revit.UI;
-using RevitLogic.Features.Button4;
+using RevitMepLogic.Features;
 
-namespace RevitLogic.EntryPoints
+namespace RevitMepLogic.EntryPoints
 {
     public static class Button4Entry
     {

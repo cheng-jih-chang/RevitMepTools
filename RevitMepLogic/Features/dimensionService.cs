@@ -1,14 +1,14 @@
 using Autodesk.Revit.UI;
 
-namespace RevitLogic.Features.Button4
+namespace RevitMepLogic.Features
 {
-    public class Button4Service
+    public class dimensionService
     {
         public string Execute(UIApplication uiapp)
         {
             if (uiapp == null) return "uiapp is null";
             // TODO: 套管生成主邏輯
-            return "BUTTON4 confirmed successful execution";
+            return "dimensionService confirmed successful execution";
         }
     }
 }

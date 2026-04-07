@@ -1,4 +1,4 @@
-// RevitAddinHost\App.cs
+// RevitMepAddinHost\App.cs
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -20,32 +20,32 @@ namespace RevitMepAddinHost
 
             string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-            var b1 = new PushButtonData(
-                "Btn1", WrapText("Button 1"), assemblyPath,
-                "RevitAddinHost.Commands.Button1"
+            var dimension = new PushButtonData(
+                "Dimension", WrapText("Dimension"), assemblyPath,
+                "RevitMepAddinHost.Commands.dimension"
             );
 
             var b2 = new PushButtonData(
                 "Btn2", WrapText("Button 2"), assemblyPath,
-                "RevitAddinHost.Commands.Button2"
+                "RevitMepAddinHost.Commands.Button2"
             );
 
             var b3 = new PushButtonData(
                 "Btn3", WrapText("Button 3"), assemblyPath,
-                "RevitAddinHost.Commands.Button3"
+                "RevitMepAddinHost.Commands.Button3"
             );
 
             var b4 = new PushButtonData(
                 "Btn4", WrapText("Button 4"), assemblyPath,
-                "RevitAddinHost.Commands.Button4"
+                "RevitMepAddinHost.Commands.Button4"
             );
 
             var b5 = new PushButtonData(
                 "Btn5", WrapText("Button 5"), assemblyPath,
-                "RevitAddinHost.Commands.Button5"
+                "RevitMepAddinHost.Commands.Button5"
             );
 
-            panel.AddItem(b1);
+            panel.AddItem(dimension);
             panel.AddItem(b2);
             panel.AddItem(b3);
             panel.AddItem(b4);

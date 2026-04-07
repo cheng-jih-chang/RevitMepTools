@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Autodesk.Revit.UI;
 
-namespace RevitAddinHost
+namespace RevitMepAddinHost
 {
     internal static class Loader
     {
@@ -15,13 +15,13 @@ namespace RevitAddinHost
                 string hostDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
                 // 正式安裝：與 RevitAddinHost.dll 放同一層
-                string appLocalPath = Path.Combine(hostDir, "RevitLogic.dll");
+                string appLocalPath = Path.Combine(hostDir, "RevitMepLogic.dll");
                 if (File.Exists(appLocalPath))
                     return appLocalPath;
 
                 // 開發模式 fallback：回專案 dist
                 string devDistPath = Path.GetFullPath(
-                    Path.Combine(hostDir, @"..\..\..\dist\RevitLogic.dll")
+                    Path.Combine(hostDir, @"..\..\..\dist\RevitMepLogic.dll")
                 );
                 if (File.Exists(devDistPath))
                     return devDistPath;

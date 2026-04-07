@@ -13,7 +13,7 @@ RevitAddinHost.dll  (the stable host assembly)
   ↓
 Loader.cs
   ↓
-dist/RevitLogic.dll (the reloadable logic assembly)
+dist/RevitMepLogic.dll (the reloadable logic assembly)
 ```
 
 Project structure:
@@ -22,8 +22,8 @@ Project structure:
 RevitAddinHotReloadDemo
 │
 ├─ dist
-│   RevitLogic.dll
-│   RevitLogic.pdb
+│   RevitMepLogic.dll
+│   RevitMepLogic.pdb
 │
 ├─ RevitAddinHost
 │   App.cs
@@ -32,9 +32,9 @@ RevitAddinHotReloadDemo
 │   Loader.cs
 │   RevitAddinHost.csproj
 │
-└─ RevitLogic
+└─ RevitMepLogic
     Entry.cs
-    RevitLogic.csproj
+    RevitMepLogic.csproj
     ```
 
 ---
@@ -70,7 +70,7 @@ Create Ribbon
 
 ---
 
-### RevitLogic (Logic)
+### RevitMepLogic (Logic)
 
 This is the **actual feature implementation** layer.
 
@@ -87,7 +87,7 @@ Entry.cs
 
 Example:
 
-namespace RevitLogic
+namespace RevitMepLogic
 {
     public class Entry
     {
@@ -102,7 +102,7 @@ namespace RevitLogic
 
 ## 3. What the Loader Does
 
-The Loader loads `dist/RevitLogic.dll` at runtime.
+The Loader loads `dist/RevitMepLogic.dll` at runtime.
 
 byte[] asmBytes = File.ReadAllBytes(LogicDllPath);
 Assembly asm = Assembly.Load(asmBytes);
@@ -122,7 +122,7 @@ CommandButton
  ↓
 Loader.Call()
  ↓
-Load dist/RevitLogic.dll
+Load dist/RevitMepLogic.dll
  ↓
 Execute Entry.Run()
 ```
@@ -131,13 +131,13 @@ Execute Entry.Run()
 
 ## 4. Why Use the `dist` Folder
 
-The compiled DLL from RevitLogic is generated at:
+The compiled DLL from RevitMepLogic is generated at:
 
-RevitLogic/bin/Debug/RevitLogic.dll
+RevitMepLogic/bin/Debug/RevitMepLogic.dll
 
 But the DLL actually loaded by Revit is:
 
-dist/RevitLogic.dll
+dist/RevitMepLogic.dll
 
 So after building, the output must be copied into `dist`.
 
@@ -147,14 +147,14 @@ So after building, the output must be copied into `dist`.
 
 If you modify:
 
-RevitLogic/Entry.cs
+RevitMepLogic/Entry.cs
 
 You only need to run:
 
-dotnet build .\RevitLogic\RevitLogic.csproj
+dotnet build .\RevitMepLogic\RevitMepLogic.csproj
 
-Copy-Item .\RevitLogic\bin\Debug\RevitLogic.dll .\dist\RevitLogic.dll -Force
-Copy-Item .\RevitLogic\bin\Debug\RevitLogic.pdb .\dist\RevitLogic.pdb -Force
+Copy-Item .\RevitMepLogic\bin\Debug\RevitMepLogic.dll .\dist\RevitMepLogic.dll -Force
+Copy-Item .\RevitMepLogic\bin\Debug\RevitMepLogic.pdb .\dist\RevitMepLogic.pdb -Force
 
 Then:
 
@@ -176,7 +176,7 @@ Rule of thumb:
 
 | Modified files       | Need to restart Revit? |
 | -------------------- | ---------------------- |
-| RevitLogic/*         | No                     |
+| RevitMepLogic/*         | No                     |
 | RevitAddinHost/*     | Yes                    |
 
 Reason:
@@ -197,11 +197,11 @@ So the Host DLL remains locked for the current Revit session.
 
 Before the first launch:
 
-dotnet build .\RevitAddinHost\RevitAddinHost.csproj
+dotnet build .\RevitMepAddinHost\RevitMepAddinHost.csproj
 
 After that, during normal development, only build the Logic project.
 
-dotnet build .\RevitLogic\RevitLogic.csproj
+dotnet build .\RevitMepLogic\RevitMepLogic.csproj
 
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 
