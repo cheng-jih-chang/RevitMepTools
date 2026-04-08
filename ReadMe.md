@@ -174,10 +174,10 @@ You do **not** need to:
 
 Rule of thumb:
 
-| Modified files       | Need to restart Revit? |
-| -------------------- | ---------------------- |
-| RevitMepLogic/*         | No                     |
-| RevitAddinHost/*     | Yes                    |
+| Modified files   | Need to restart Revit? |
+| ---------------- | ---------------------- |
+| RevitMepLogic/*  | No                     |
+| RevitAddinHost/* | Yes                    |
 
 Reason:
 
@@ -277,12 +277,12 @@ Example manifest:
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <RevitAddIns>
   <AddIn Type="Application">
-    <Name>RevitAddinHotReloadDemo</Name>
-    <Assembly>D:\Project\BIM+C#\RevitAddinHotReloadDemo\RevitAddinHost\bin\Debug\RevitAddinHost.dll</Assembly>
-    <AddInId>NEW-GUID-HERE</AddInId>
-    <FullClassName>RevitAddinHost.App</FullClassName>
+    <Name>RevitMepTool</Name>
+    <Assembly>D:\Project\RevitMepTools\RevitMepAddinHost\bin\Debug\RevitMepAddinHost.dll</Assembly>
+    <AddInId>2C21B310-833D-4AC0-805F-BF73A7EB305F</AddInId>
+    <FullClassName>RevitMepAddinHost.App</FullClassName>
     <VendorId>TEST</VendorId>
-    <VendorDescription>RevitAddinHotReloadDemo</VendorDescription>
+    <VendorDescription>RevitMepTools</VendorDescription>
   </AddIn>
 </RevitAddIns>
 ```
