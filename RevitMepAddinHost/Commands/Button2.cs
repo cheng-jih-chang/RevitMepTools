@@ -13,7 +13,7 @@ namespace RevitMepAddinHost.Commands
             {
                 var uiapp = commandData.Application;
 
-                object result = Loader.Call("RevitMepLogic.EntryPoints.Button2Entry.Run", uiapp);
+                object result = Loader.Call("RevitLogic.EntryPoints.Button2Entry.Run", uiapp);
                 string text = result?.ToString() ?? "";
 
                 TaskDialog.Show("Button2", text);

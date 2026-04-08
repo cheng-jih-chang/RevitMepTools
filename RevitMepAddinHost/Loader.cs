@@ -15,13 +15,13 @@ namespace RevitMepAddinHost
                 string hostDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
                 // 正式安裝：與 RevitAddinHost.dll 放同一層
-                string appLocalPath = Path.Combine(hostDir, "RevitMepLogic.dll");
+                string appLocalPath = Path.Combine(hostDir, "RevitLogic.dll");
                 if (File.Exists(appLocalPath))
                     return appLocalPath;
 
                 // 開發模式 fallback：回專案 dist
                 string devDistPath = Path.GetFullPath(
-                    Path.Combine(hostDir, @"..\..\..\dist\RevitMepLogic.dll")
+                    Path.Combine(hostDir, @"..\..\..\dist\RevitLogic.dll")
                 );
                 if (File.Exists(devDistPath))
                     return devDistPath;
