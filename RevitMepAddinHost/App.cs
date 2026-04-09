@@ -20,9 +20,9 @@ namespace RevitMepAddinHost
 
             string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-            var dimension = new PushButtonData(
-                "Dimension", WrapText("Dimension"), assemblyPath,
-                "RevitMepAddinHost.Commands.dimension"
+            var dimensionBeamXY = new PushButtonData(
+                "Dimension Beam XY", WrapText("Dimension Beam XY"), assemblyPath,
+                "RevitMepAddinHost.Commands.DimensionBeamXY"
             );
 
             var b2 = new PushButtonData(
@@ -45,7 +45,7 @@ namespace RevitMepAddinHost
                 "RevitMepAddinHost.Commands.Button5"
             );
 
-            panel.AddItem(dimension);
+            panel.AddItem(dimensionBeamXY);
             panel.AddItem(b2);
             panel.AddItem(b3);
             panel.AddItem(b4);
