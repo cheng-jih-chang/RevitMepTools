@@ -62,13 +62,18 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
         {
             if (uiapp == null) return "uiapp is null";
 
+            var sb = new StringBuilder();
+            sb.AppendLine("[DEBUG] ScheduleLegendGenerationService NEW BUILD v2");
+
             string legendDwgRootFolder = GetLegendDwgRootFolderTextFromUi();
             if (string.IsNullOrWhiteSpace(legendDwgRootFolder))
-                return "Legend DWG 根目錄未設定。請先在 Ribbon 的 ScheduleLegendGeneration 旁輸入路徑並按 Enter，或從下拉選單選擇預設路徑。";
+            {
+                sb.AppendLine("Legend DWG 根目錄未設定。請先在 Ribbon 的 ScheduleLegendGeneration 旁輸入路徑並按 Enter，或從下拉選單選擇預設路徑。");
+                return sb.ToString();
+            }
 
             FindViewSheetSchedule.FindViewSheetScheduleResult sheetResult = FindViewSheetSchedule.Find(uiapp);
 
-            var sb = new StringBuilder();
             if (!sheetResult.Ok)
             {
                 sb.AppendLine("無法取得圖紙或明細表。");
@@ -114,14 +119,61 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                 {
                     foreach (var r in legendResult.Results)
                     {
+                        var scheduleOnSheet = sheetResult.SchedulesOnPickedSheet
+                            .FirstOrDefault(x => string.Equals(x.ScheduleName, r.ScheduleName, StringComparison.OrdinalIgnoreCase));
+                        double bboxHeight = 0;
+                        if (scheduleOnSheet != null)
+                            bboxHeight = scheduleOnSheet.BboxMaxY - scheduleOnSheet.BboxMinY;
+                        double allRowHeight = r.AllTotalRowHeight;
+                        double ratio = allRowHeight > 0 ? (bboxHeight / allRowHeight) : 0;
+
                         sb.AppendLine("  " + r.ScheduleName);
                         sb.AppendLine("    標題列: " + r.PickedSection + " row " + r.PickedRow + ", score=" + r.PickedRowScore);
                         sb.AppendLine("    族群欄索引: " + (r.ColIndexGroup.HasValue ? r.ColIndexGroup.Value.ToString() : "—"));
                         sb.AppendLine("    說明欄索引: " + (r.ColIndexDesc.HasValue ? r.ColIndexDesc.Value.ToString() : "—"));
+                        sb.AppendLine("    [RowHeightDebug] body.NumberOfRows=" + r.BodyRowCount);
+                        if (r.BodyRowHeights != null && r.BodyRowHeights.Count > 0)
+                            sb.AppendLine("    [RowHeightDebug] bodyRowHeights=" + string.Join(", ", r.BodyRowHeights.Select(h => h.ToString("0.######"))));
+                        else
+                            sb.AppendLine("    [RowHeightDebug] bodyRowHeights=(empty)");
+                        sb.AppendLine("    [RowHeightDebug] bodyTotalRowHeight=" + r.BodyTotalRowHeight.ToString("0.######"));
+                        sb.AppendLine("    [RowHeightDebug] headerTotalRowHeight=" + r.HeaderTotalRowHeight.ToString("0.######"));
+                        sb.AppendLine("    [RowHeightDebug] allTotalRowHeight=" + allRowHeight.ToString("0.######"));
+                        sb.AppendLine("    [RowHeightDebug] scheduleBboxHeight=" + bboxHeight.ToString("0.######"));
+                        sb.AppendLine("    [RowHeightDebug] bboxHeight/allRowHeights=" + ratio.ToString("0.######"));
+                        sb.AppendLine("    [CalibrationDebug] usedAuto=" + (r.UsedAutoCalibration ? "true" : "false")
+                            + " | calibratedCharWidthFt=" + r.CalibratedCharWidthFt.ToString("0.######")
+                            + " | calibratedCharsPerLine=" + r.CalibratedCharsPerLine
+                            + " | fallback=0.011");
+                        if (r.CalibrationDebugLines != null && r.CalibrationDebugLines.Count > 0)
+                        {
+                            foreach (string line in r.CalibrationDebugLines.Take(12))
+                                sb.AppendLine("    " + line);
+                            if (r.CalibrationDebugLines.Count > 12)
+                                sb.AppendLine("    ... calibration samples " + r.CalibrationDebugLines.Count + " lines");
+                        }
                         if (r.GroupValues != null && r.GroupValues.Count > 0)
                             sb.AppendLine("    族群值(" + r.GroupValues.Count + "): " + string.Join(", ", r.GroupValues.Take(10)) + (r.GroupValues.Count > 10 ? " ..." : ""));
                         else
                             sb.AppendLine("    族群值: (無)");
+
+                        if (r.GroupItems != null && r.GroupItems.Count > 0)
+                        {
+                            foreach (var gi in r.GroupItems.Take(8))
+                            {
+                                string groupName = (gi.Value ?? "").Replace("\r\n", " ").Replace('\n', ' ').Trim();
+                                sb.AppendLine("    [GroupDebug] " + groupName
+                                    + " | row=" + gi.BodyRowIndex
+                                    + " | rowHeight=" + gi.BodyRowHeight.ToString("0.######")
+                                    + " | colWidth=" + gi.GroupColumnWidth.ToString("0.######")
+                                    + " | textLength=" + gi.TextLength
+                                    + " | charsPerLine=" + gi.EstimatedCharsPerLine
+                                    + " | lineCount=" + gi.VisualLineCount
+                                    + " | calibratedCharWidthFt=" + gi.CalibratedCharWidthFt.ToString("0.######")
+                                    + " | calibratedCharsPerLine=" + gi.CalibratedCharsPerLine
+                                    + " | auto=" + (gi.UsedAutoCalibration ? "true" : "false"));
+                            }
+                        }
                     }
                 }
                 if (legendResult.Errors != null && legendResult.Errors.Count > 0)
@@ -182,7 +234,7 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                         OffsetYMm = 21
                     };
                     LinkLegendDwg.LinkLegendDwgResult linkResult = LinkLegendDwg.Place(
-                        doc, uiapp.ActiveUIDocument, sheetResult, dwgResult, linkOptions);
+                        doc, uiapp.ActiveUIDocument, sheetResult, dwgResult, legendResult.GroupItemsBySchedule, linkOptions);
 
                     sb.AppendLine();
                     sb.AppendLine("--- 圖紙放置 DWG（Node04 LinkLegendDwg）---");

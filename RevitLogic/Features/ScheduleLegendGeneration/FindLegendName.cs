@@ -16,6 +16,8 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
     {
         private const string TargetColName = "族群";
         private const string DescColName = "說明";
+        private const double DefaultCharWidthEstimateFt = 0.011;
+        private const int MinCalibrationTextLength = 16;
 
         /// <summary>單一明細表的標題/族群解析結果。</summary>
         public sealed class ScheduleLegendResult
@@ -28,6 +30,39 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             public int? ColIndexGroup { get; set; }
             public int? ColIndexDesc { get; set; }
             public List<string> GroupValues { get; set; }
+            public List<GroupItemInfo> GroupItems { get; set; }
+            public int BodyRowCount { get; set; }
+            public List<double> BodyRowHeights { get; set; }
+            public double BodyTotalRowHeight { get; set; }
+            public double HeaderTotalRowHeight { get; set; }
+            public double AllTotalRowHeight { get; set; }
+            public double CalibratedCharWidthFt { get; set; }
+            public int CalibratedCharsPerLine { get; set; }
+            public bool UsedAutoCalibration { get; set; }
+            public List<string> CalibrationDebugLines { get; set; }
+        }
+
+        /// <summary>單筆族群資訊（含 body row 與視覺行數）。</summary>
+        public sealed class GroupItemInfo
+        {
+            public string Value { get; set; }
+            public int BodyRowIndex { get; set; }
+            public double BodyRowHeight { get; set; }
+            public double GroupColumnWidth { get; set; }
+            public int TextLength { get; set; }
+            public int EstimatedCharsPerLine { get; set; }
+            public int VisualLineCount { get; set; }
+            public double CalibratedCharWidthFt { get; set; }
+            public int CalibratedCharsPerLine { get; set; }
+            public bool UsedAutoCalibration { get; set; }
+        }
+
+        private sealed class CharWidthCalibrationResult
+        {
+            public double CalibratedCharWidthFt { get; set; }
+            public int CalibratedCharsPerLine { get; set; }
+            public bool UsedAutoCalibration { get; set; }
+            public List<string> DebugLines { get; set; }
         }
 
         /// <summary>FindLegendName 的整體結果。</summary>
@@ -37,6 +72,7 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             public string Error { get; set; }
             public List<ScheduleLegendResult> Results { get; set; }
             public Dictionary<string, List<string>> GroupMapBySchedule { get; set; }
+            public Dictionary<string, List<GroupItemInfo>> GroupItemsBySchedule { get; set; }
             public List<string> Errors { get; set; }
         }
 
@@ -51,6 +87,7 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             {
                 Results = new List<ScheduleLegendResult>(),
                 GroupMapBySchedule = new Dictionary<string, List<string>>(),
+                GroupItemsBySchedule = new Dictionary<string, List<GroupItemInfo>>(),
                 Errors = new List<string>()
             };
 
@@ -111,6 +148,19 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                     int ncolsH = header.NumberOfColumns;
                     int ncolsB = body.NumberOfColumns;
                     var candidates = new List<(string section, int row, string[] texts, int score, int nonEmpty, string joined)>();
+                    var bodyRowHeights = new List<double>();
+
+                    double headerTotalRowHeight = 0;
+                    for (int hr = 0; hr < header.NumberOfRows; hr++)
+                        headerTotalRowHeight += GetSectionRowHeight(header, hr);
+
+                    double bodyTotalRowHeight = 0;
+                    for (int br = 0; br < body.NumberOfRows; br++)
+                    {
+                        double h = GetSectionRowHeight(body, br);
+                        bodyRowHeights.Add(h);
+                        bodyTotalRowHeight += h;
+                    }
 
                     int scanH = Math.Min(12, header.NumberOfRows);
                     for (int r = 0; r < scanH; r++)
@@ -144,6 +194,9 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                     int? colIdxDesc = FindColIndex(bestTexts, DescColName);
 
                     var groups = new List<string>();
+                    var groupItems = new List<GroupItemInfo>();
+                    var rawGroupItems = new List<(string value, int bodyRowIndex, double bodyRowHeight, int textLength, double groupColumnWidth)>();
+                    double groupColumnWidth = colIdxGroup.HasValue ? GetColumnWidth(body, colIdxGroup.Value) : 0;
                     int startRow = (secName == "Body") ? bestRow + 1 : 0;
                     if (colIdxGroup.HasValue)
                     {
@@ -154,10 +207,37 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                             string t = txt.Trim();
                             if (string.IsNullOrEmpty(t)) continue;
                             groups.Add(t);
+                            rawGroupItems.Add((txt, r, GetSectionRowHeight(body, r), t.Length, groupColumnWidth));
                         }
                     }
 
+                    CharWidthCalibrationResult calibration = CalibrateCharWidthFromSamples(
+                        rawGroupItems.Select(x => (x.textLength, x.groupColumnWidth)));
+
+                    foreach (var raw in rawGroupItems)
+                    {
+                        string normalized = (raw.value ?? "").Trim();
+                        int lineCount = EstimateVisualLineCountByCalibratedCharsPerLine(
+                            normalized,
+                            calibration.CalibratedCharsPerLine,
+                            out int estimatedCharsPerLine);
+                        groupItems.Add(new GroupItemInfo
+                        {
+                            Value = raw.value,
+                            BodyRowIndex = raw.bodyRowIndex,
+                            BodyRowHeight = raw.bodyRowHeight,
+                            GroupColumnWidth = raw.groupColumnWidth,
+                            TextLength = raw.textLength,
+                            EstimatedCharsPerLine = estimatedCharsPerLine,
+                            VisualLineCount = lineCount,
+                            CalibratedCharWidthFt = calibration.CalibratedCharWidthFt,
+                            CalibratedCharsPerLine = calibration.CalibratedCharsPerLine,
+                            UsedAutoCalibration = calibration.UsedAutoCalibration
+                        });
+                    }
+
                     result.GroupMapBySchedule[scheduleName] = groups;
+                    result.GroupItemsBySchedule[scheduleName] = groupItems;
                     result.Results.Add(new ScheduleLegendResult
                     {
                         ScheduleName = scheduleName,
@@ -167,7 +247,17 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                         PickedRowScore = bestScore,
                         ColIndexGroup = colIdxGroup,
                         ColIndexDesc = colIdxDesc,
-                        GroupValues = groups
+                        GroupValues = groups,
+                        GroupItems = groupItems,
+                        BodyRowCount = body.NumberOfRows,
+                        BodyRowHeights = bodyRowHeights,
+                        BodyTotalRowHeight = bodyTotalRowHeight,
+                        HeaderTotalRowHeight = headerTotalRowHeight,
+                        AllTotalRowHeight = headerTotalRowHeight + bodyTotalRowHeight,
+                        CalibratedCharWidthFt = calibration.CalibratedCharWidthFt,
+                        CalibratedCharsPerLine = calibration.CalibratedCharsPerLine,
+                        UsedAutoCalibration = calibration.UsedAutoCalibration,
+                        CalibrationDebugLines = calibration.DebugLines
                     });
                 }
                 catch (Exception ex)
@@ -222,6 +312,142 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                 if (!string.IsNullOrEmpty(texts[i]) && texts[i].Contains(name)) return i;
             }
             return null;
+        }
+
+        private static CharWidthCalibrationResult CalibrateCharWidthFromSamples(IEnumerable<(int textLength, double groupColumnWidth)> samples)
+        {
+            var debugLines = new List<string>();
+            var charsPerLineCandidates = new List<int>();
+            var charWidthCandidates = new List<double>();
+
+            if (samples != null)
+            {
+                foreach (var sample in samples)
+                {
+                    int inferredExpectedLineCount = InferExpectedLineCountFromTextLength(sample.textLength);
+                    if (sample.textLength < MinCalibrationTextLength || sample.groupColumnWidth <= 0 || inferredExpectedLineCount < 2)
+                        continue;
+
+                    int candidateCharsPerLine = (int)Math.Ceiling(sample.textLength / (double)inferredExpectedLineCount);
+                    if (candidateCharsPerLine <= 0)
+                        continue;
+
+                    double candidateCharWidthFt = sample.groupColumnWidth / candidateCharsPerLine;
+                    if (candidateCharWidthFt <= 0)
+                        continue;
+
+                    charsPerLineCandidates.Add(candidateCharsPerLine);
+                    charWidthCandidates.Add(candidateCharWidthFt);
+                    debugLines.Add("[CalibrationSample] textLength=" + sample.textLength
+                        + " | inferredLines=" + inferredExpectedLineCount
+                        + " | candidateCharsPerLine=" + candidateCharsPerLine
+                        + " | candidateCharWidthFt=" + candidateCharWidthFt.ToString("0.######"));
+                }
+            }
+
+            if (charsPerLineCandidates.Count >= 2)
+            {
+                double avgCharsPerLine = charsPerLineCandidates.Average();
+                int calibratedCharsPerLine = Math.Max(1, (int)Math.Round(avgCharsPerLine, MidpointRounding.AwayFromZero));
+                double calibratedCharWidthFt = charWidthCandidates.Count > 0
+                    ? charWidthCandidates.Average()
+                    : DefaultCharWidthEstimateFt;
+
+                return new CharWidthCalibrationResult
+                {
+                    CalibratedCharWidthFt = calibratedCharWidthFt,
+                    CalibratedCharsPerLine = calibratedCharsPerLine,
+                    UsedAutoCalibration = true,
+                    DebugLines = debugLines
+                };
+            }
+
+            return new CharWidthCalibrationResult
+            {
+                CalibratedCharWidthFt = DefaultCharWidthEstimateFt,
+                CalibratedCharsPerLine = 1,
+                UsedAutoCalibration = false,
+                DebugLines = debugLines
+            };
+        }
+
+        private static int EstimateVisualLineCountByCalibratedCharsPerLine(
+            string text,
+            int calibratedCharsPerLine,
+            out int estimatedCharsPerLine)
+        {
+            string normalizedText = (text ?? "").Trim();
+            int textLength = normalizedText.Length;
+            if (textLength == 0)
+            {
+                estimatedCharsPerLine = 0;
+                return 1;
+            }
+            if (calibratedCharsPerLine <= 0)
+            {
+                estimatedCharsPerLine = 0;
+                return 1;
+            }
+
+            estimatedCharsPerLine = Math.Max(1, calibratedCharsPerLine);
+            int lineCount = (int)Math.Ceiling(textLength / (double)estimatedCharsPerLine);
+            return Math.Max(1, lineCount);
+        }
+
+        private static int InferExpectedLineCountFromTextLength(int textLength)
+        {
+            if (textLength <= 18) return 1;
+            if (textLength <= 30) return 2;
+            return 3;
+        }
+
+        private static double GetColumnWidth(TableSectionData body, int colIndex)
+        {
+            if (body == null || colIndex < 0)
+                return 0;
+            try
+            {
+                return body.GetColumnWidth(colIndex);
+            }
+            catch
+            {
+                try
+                {
+                    var method = body.GetType().GetMethod("GetColumnWidth", new[] { typeof(int) });
+                    if (method != null)
+                    {
+                        object value = method.Invoke(body, new object[] { colIndex });
+                        if (value is double d) return d;
+                    }
+                }
+                catch { }
+
+                return 0;
+            }
+        }
+
+        private static double GetSectionRowHeight(TableSectionData section, int rowIndex)
+        {
+            if (section == null) return 0;
+            try
+            {
+                return section.GetRowHeight(rowIndex);
+            }
+            catch
+            {
+                try
+                {
+                    var method = section.GetType().GetMethod("GetRowHeight", new[] { typeof(int) });
+                    if (method != null)
+                    {
+                        object value = method.Invoke(section, new object[] { rowIndex });
+                        if (value is double d) return d;
+                    }
+                }
+                catch { }
+
+                return 0;
+            }
         }
     }
 }

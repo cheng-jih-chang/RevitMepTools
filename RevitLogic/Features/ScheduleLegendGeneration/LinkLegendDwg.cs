@@ -70,6 +70,7 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             UIDocument uidoc,
             FindViewSheetSchedule.FindViewSheetScheduleResult node01,
             FindLegendDwg.FindLegendDwgResult node03,
+            Dictionary<string, List<FindLegendName.GroupItemInfo>> groupItemsBySchedule = null,
             LinkLegendDwgOptions options = null)
         {
             var result = new LinkLegendDwgResult { Placed = new List<PlacedRecord>(), Warnings = new List<string>() };
@@ -161,6 +162,7 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                 {
                     string schedName = kv.Key;
                     List<FindLegendDwg.DwgMatchRecord> recs = kv.Value;
+                    Dictionary<string, int> visualLineCountByGroup = BuildVisualLineCountLookup(schedName, groupItemsBySchedule);
                     if (!ssiBySchedName.TryGetValue(schedName, out ScheduleSheetInstance ssi))
                     {
                         result.Warnings.Add("Schedule not found on sheet: " + schedName);
@@ -183,51 +185,62 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                         start = new XYZ(basePt.X + offsetXFt, basePt.Y, 0);
                     }
 
+                    double currentYOffsetFt = offsetYFt;
                     for (int i = 0; i < recs.Count; i++)
                     {
                         var r = recs[i];
-                        if (string.Equals(r.Status, "found", StringComparison.OrdinalIgnoreCase) == false)
-                        {
-                            result.Warnings.Add("Missing DWG: " + schedName + " / " + (r.GroupName ?? ""));
-                            continue;
-                        }
-                        string dwgPath = (r.DwgPaths != null && r.DwgPaths.Count > 0) ? r.DwgPaths[0] : null;
-                        if (string.IsNullOrEmpty(dwgPath))
-                        {
-                            result.Warnings.Add("No dwg_paths: " + schedName + " / " + (r.GroupName ?? ""));
-                            continue;
-                        }
-                        if (!File.Exists(dwgPath))
-                        {
-                            result.Warnings.Add("DWG not exists: " + dwgPath);
-                            continue;
-                        }
+                        bool hasVisualLineCount = TryResolveVisualLineCount(visualLineCountByGroup, r.GroupName, out int visualLineCount);
+                        string groupName = r.GroupName ?? "";
+                        if (!hasVisualLineCount)
+                            result.Warnings.Add("[PlaceDebug] missing lineCount, fallback=1 | schedule=" + schedName + " | group=" + groupName);
+                        result.Warnings.Add("[PlaceDebug] schedule=" + schedName + " | group=" + groupName + " | lineCount=" + visualLineCount + " | currentYOffsetFt=" + currentYOffsetFt.ToString("0.######"));
+                        XYZ pt = new XYZ(start.X, start.Y - currentYOffsetFt, 0);
 
-                        XYZ pt = new XYZ(start.X, start.Y - offsetYFt - i * rowHFt, 0);
-                        bool ok = PlaceDwgOnSheet(doc, sheet, dwgPath, pt, importUnit, out ElementId eid, out string mode, out string err);
-                        if (ok && eid != null && eid != ElementId.InvalidElementId)
+                        if (string.Equals(r.Status, "found", StringComparison.OrdinalIgnoreCase))
                         {
-                            if (string.Equals(mode, "link", StringComparison.OrdinalIgnoreCase))
-                                result.LinkOk++;
-                            else
-                                result.ImportOk++;
-                            result.Placed.Add(new PlacedRecord
+                            string dwgPath = (r.DwgPaths != null && r.DwgPaths.Count > 0) ? r.DwgPaths[0] : null;
+                            if (string.IsNullOrEmpty(dwgPath))
                             {
-                                ScheduleName = schedName,
-                                GroupName = r.GroupName ?? "",
-                                DwgPath = dwgPath,
-                                Mode = mode ?? "",
-                                ImportInstanceId = eid.ToString()
-                            });
+                                result.Warnings.Add("No dwg_paths: " + schedName + " / " + (r.GroupName ?? ""));
+                            }
+                            else if (!File.Exists(dwgPath))
+                            {
+                                result.Warnings.Add("DWG not exists: " + dwgPath);
+                            }
+                            else
+                            {
+                                bool ok = PlaceDwgOnSheet(doc, sheet, dwgPath, pt, importUnit, out ElementId eid, out string mode, out string err);
+                                if (ok && eid != null && eid != ElementId.InvalidElementId)
+                                {
+                                    if (string.Equals(mode, "link", StringComparison.OrdinalIgnoreCase))
+                                        result.LinkOk++;
+                                    else
+                                        result.ImportOk++;
+                                    result.Placed.Add(new PlacedRecord
+                                    {
+                                        ScheduleName = schedName,
+                                        GroupName = r.GroupName ?? "",
+                                        DwgPath = dwgPath,
+                                        Mode = mode ?? "",
+                                        ImportInstanceId = eid.ToString()
+                                    });
+                                }
+                                else
+                                {
+                                    if (string.Equals(mode, "link", StringComparison.OrdinalIgnoreCase))
+                                        result.LinkFail++;
+                                    else
+                                        result.ImportFail++;
+                                    result.Warnings.Add("Place failed: " + dwgPath + " | " + (err ?? ""));
+                                }
+                            }
                         }
                         else
                         {
-                            if (string.Equals(mode, "link", StringComparison.OrdinalIgnoreCase))
-                                result.LinkFail++;
-                            else
-                                result.ImportFail++;
-                            result.Warnings.Add("Place failed: " + dwgPath + " | " + (err ?? ""));
+                            result.Warnings.Add("Missing DWG: " + schedName + " / " + (r.GroupName ?? ""));
                         }
+
+                        currentYOffsetFt += rowHFt * visualLineCount;
                     }
                 }
 
@@ -238,6 +251,58 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             result.Ok = true;
             result.Error = null;
             return result;
+        }
+
+        private static Dictionary<string, int> BuildVisualLineCountLookup(
+            string scheduleName,
+            Dictionary<string, List<FindLegendName.GroupItemInfo>> groupItemsBySchedule)
+        {
+            var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            if (groupItemsBySchedule == null || string.IsNullOrWhiteSpace(scheduleName))
+                return lookup;
+            if (!groupItemsBySchedule.TryGetValue(scheduleName.Trim(), out List<FindLegendName.GroupItemInfo> items) || items == null)
+                return lookup;
+
+            foreach (FindLegendName.GroupItemInfo item in items)
+            {
+                string key = NormalizeGroupKey(item?.Value);
+                if (string.IsNullOrEmpty(key) || lookup.ContainsKey(key))
+                    continue;
+                int visualLineCount = item.VisualLineCount > 0 ? item.VisualLineCount : 1;
+                lookup[key] = visualLineCount;
+            }
+
+            return lookup;
+        }
+
+        private static bool TryResolveVisualLineCount(
+            Dictionary<string, int> visualLineCountByGroup,
+            string groupName,
+            out int visualLineCount)
+        {
+            visualLineCount = 1;
+            if (visualLineCountByGroup == null || visualLineCountByGroup.Count == 0)
+                return false;
+
+            string key = NormalizeGroupKey(groupName);
+            if (string.IsNullOrEmpty(key))
+                return false;
+
+            if (visualLineCountByGroup.TryGetValue(key, out int found))
+            {
+                visualLineCount = Math.Max(1, found);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizeGroupKey(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return value.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
         }
 
         private static ViewSheet ResolveSheet(Document doc, UIDocument uidoc, FindViewSheetSchedule.FindViewSheetScheduleResult node01)
