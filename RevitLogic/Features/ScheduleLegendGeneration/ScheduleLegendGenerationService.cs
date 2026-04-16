@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -65,7 +66,7 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             var sb = new StringBuilder();
             sb.AppendLine("[DEBUG] ScheduleLegendGenerationService NEW BUILD v2");
 
-            string legendDwgRootFolder = GetLegendDwgRootFolderTextFromUi();
+            string legendDwgRootFolder = GetLegendDwgRootFolderTextFromUi(sb);
             if (string.IsNullOrWhiteSpace(legendDwgRootFolder))
             {
                 sb.AppendLine("Legend DWG 根目錄未設定。請先在 Ribbon 的 ScheduleLegendGeneration 旁輸入路徑並按 Enter，或從下拉選單選擇預設路徑。");
@@ -262,22 +263,139 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             return sb.ToString();
         }
 
-        private static string GetLegendDwgRootFolderTextFromUi()
+        private static string GetLegendDwgRootFolderTextFromUi(StringBuilder sb = null)
         {
             // 以反射取值，避免 RevitLogic 對 RevitMepAddinHost 產生編譯期相依。
             Type appType = Type.GetType("RevitMepAddinHost.App, RevitMepAddinHost", false);
+            sb?.AppendLine("[LogicRootDebug] initialTypeGet=" + (appType != null ? "success" : "fail"));
+
+            Assembly matchedAssembly = null;
+            Assembly[] loadedAssemblies = new Assembly[0];
+            bool directAssemblyTypeScanSuccess = false;
+            bool diskFallbackTried = false;
+            string diskFallbackMatchedPath = "(null)";
+
             if (appType == null)
+            {
+                loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies() ?? new Assembly[0];
+                string loadedAssemblyNames = string.Join(", ",
+                    loadedAssemblies
+                        .Select(a => a.GetName().Name)
+                        .Where(n => !string.IsNullOrWhiteSpace(n)));
+                sb?.AppendLine("[LogicRootDebug] loadedAssemblies=" + loadedAssemblyNames);
+
+                matchedAssembly = loadedAssemblies.FirstOrDefault(a =>
+                    string.Equals(a.GetName().Name, "RevitMepAddinHost", StringComparison.OrdinalIgnoreCase));
+
+                if (matchedAssembly == null)
+                {
+                    matchedAssembly = loadedAssemblies.FirstOrDefault(a =>
+                    {
+                        string asmName = a.GetName().Name;
+                        return !string.IsNullOrWhiteSpace(asmName)
+                            && asmName.IndexOf("RevitMepAddinHost", StringComparison.OrdinalIgnoreCase) >= 0;
+                    });
+                }
+
+                sb?.AppendLine("[LogicRootDebug] matchedAssembly=" + (matchedAssembly == null ? "(null)" : matchedAssembly.GetName().Name));
+
+                if (matchedAssembly != null)
+                    appType = matchedAssembly.GetType("RevitMepAddinHost.App", false);
+
+                if (appType == null && loadedAssemblies.Length > 0)
+                {
+                    foreach (Assembly asm in loadedAssemblies)
+                    {
+                        Type t = asm.GetType("RevitMepAddinHost.App", false);
+                        if (t != null)
+                        {
+                            appType = t;
+                            matchedAssembly = asm;
+                            directAssemblyTypeScanSuccess = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                sb?.AppendLine("[LogicRootDebug] loadedAssemblies=(skip: initialTypeGet success)");
+                sb?.AppendLine("[LogicRootDebug] matchedAssembly=(skip: initialTypeGet success)");
+            }
+
+            sb?.AppendLine("[LogicRootDebug] directAssemblyTypeScan=" + (directAssemblyTypeScanSuccess ? "success" : "fail"));
+
+            if (appType == null)
+            {
+                diskFallbackTried = true;
+                string logicAssemblyPath = Assembly.GetExecutingAssembly().Location;
+                string logicDir = string.IsNullOrWhiteSpace(logicAssemblyPath) ? null : Path.GetDirectoryName(logicAssemblyPath);
+                if (!string.IsNullOrWhiteSpace(logicDir))
+                {
+                    string[] candidatePaths = new[]
+                    {
+                        Path.Combine(logicDir, "RevitMepAddinHost.dll"),
+                        Path.Combine(logicDir, "RevitAddinHost.dll"),
+                        Path.GetFullPath(Path.Combine(logicDir, @"..\RevitMepAddinHost\bin\Debug\RevitMepAddinHost.dll"))
+                    };
+
+                    foreach (string path in candidatePaths)
+                    {
+                        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                            continue;
+
+                        try
+                        {
+                            Assembly loadedAsm = Assembly.LoadFrom(path);
+                            if (loadedAsm == null)
+                                continue;
+
+                            Type t = loadedAsm.GetType("RevitMepAddinHost.App", false);
+                            if (t != null)
+                            {
+                                appType = t;
+                                matchedAssembly = loadedAsm;
+                                diskFallbackMatchedPath = path;
+                                break;
+                            }
+                        }
+                        catch
+                        {
+                            // 忽略單一路徑載入失敗，繼續嘗試下一個候選路徑。
+                        }
+                    }
+                }
+            }
+
+            sb?.AppendLine("[LogicRootDebug] diskFallbackTried=" + (diskFallbackTried ? "yes" : "no"));
+            sb?.AppendLine("[LogicRootDebug] diskFallbackMatchedPath=" + diskFallbackMatchedPath);
+            sb?.AppendLine("[LogicRootDebug] appTypeFound=" + (appType != null ? "true" : "false"));
+            sb?.AppendLine("[LogicRootDebug] finalAppTypeAssembly=" + (appType?.Assembly?.GetName().Name ?? "(null)"));
+            if (appType == null)
+            {
+                sb?.AppendLine("[LogicRootDebug] propertyFound=false");
+                sb?.AppendLine("[LogicRootDebug] reflectedValue=(null)");
                 return null;
+            }
 
             PropertyInfo rootFolderProperty = appType.GetProperty(
                 "LegendDwgRootFolderText",
                 BindingFlags.Public | BindingFlags.Static);
 
+            sb?.AppendLine("[LogicRootDebug] propertyFound=" + (rootFolderProperty != null ? "true" : "false"));
             if (rootFolderProperty == null)
+            {
+                sb?.AppendLine("[LogicRootDebug] reflectedValue=(null)");
                 return null;
+            }
 
             object value = rootFolderProperty.GetValue(null, null);
-            return value == null ? null : value.ToString();
+            sb?.AppendLine("[LogicRootDebug] reflectedValue=" + (value == null ? "(null)" : value.ToString()));
+            string valueText = value == null ? null : value.ToString();
+            if (string.IsNullOrWhiteSpace(valueText))
+                return null;
+
+            return valueText.Trim();
         }
     }
 }

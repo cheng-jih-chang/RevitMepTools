@@ -319,10 +319,13 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
             var debugLines = new List<string>();
             var charsPerLineCandidates = new List<int>();
             var charWidthCandidates = new List<double>();
+            var sampleList = samples == null
+                ? new List<(int textLength, double groupColumnWidth)>()
+                : samples.ToList();
 
-            if (samples != null)
+            if (sampleList.Count > 0)
             {
-                foreach (var sample in samples)
+                foreach (var sample in sampleList)
                 {
                     int inferredExpectedLineCount = InferExpectedLineCountFromTextLength(sample.textLength);
                     if (sample.textLength < MinCalibrationTextLength || sample.groupColumnWidth <= 0 || inferredExpectedLineCount < 2)
@@ -362,10 +365,29 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                 };
             }
 
+            double? fallbackGroupColumnWidth = sampleList
+                .Select(x => x.groupColumnWidth)
+                .Where(w => w > 0)
+                .Cast<double?>()
+                .FirstOrDefault();
+            int fallbackCharsPerLine = 12;
+            if (fallbackGroupColumnWidth.HasValue && fallbackGroupColumnWidth.Value > 0 && DefaultCharWidthEstimateFt > 0)
+            {
+                fallbackCharsPerLine = Math.Max(
+                    1,
+                    (int)Math.Round(
+                        fallbackGroupColumnWidth.Value / DefaultCharWidthEstimateFt,
+                        MidpointRounding.AwayFromZero));
+            }
+            debugLines.Add("[CalibrationFallback] columnWidth="
+                + (fallbackGroupColumnWidth.HasValue ? fallbackGroupColumnWidth.Value.ToString("0.######") : "(none)")
+                + " | defaultCharWidthFt=" + DefaultCharWidthEstimateFt.ToString("0.######")
+                + " | fallbackCharsPerLine=" + fallbackCharsPerLine);
+
             return new CharWidthCalibrationResult
             {
                 CalibratedCharWidthFt = DefaultCharWidthEstimateFt,
-                CalibratedCharsPerLine = 1,
+                CalibratedCharsPerLine = fallbackCharsPerLine,
                 UsedAutoCalibration = false,
                 DebugLines = debugLines
             };

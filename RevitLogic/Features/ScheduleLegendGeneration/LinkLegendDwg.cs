@@ -190,11 +190,32 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                     {
                         var r = recs[i];
                         bool hasVisualLineCount = TryResolveVisualLineCount(visualLineCountByGroup, r.GroupName, out int visualLineCount);
+                        double spacingMultiplier;
+                        if (visualLineCount <= 1)
+                            spacingMultiplier = 1.0;
+                        else if (visualLineCount == 2)
+                            spacingMultiplier = 1.5;
+                        else
+                            spacingMultiplier = 2.25;
                         string groupName = r.GroupName ?? "";
                         if (!hasVisualLineCount)
                             result.Warnings.Add("[PlaceDebug] missing lineCount, fallback=1 | schedule=" + schedName + " | group=" + groupName);
-                        result.Warnings.Add("[PlaceDebug] schedule=" + schedName + " | group=" + groupName + " | lineCount=" + visualLineCount + " | currentYOffsetFt=" + currentYOffsetFt.ToString("0.######"));
-                        XYZ pt = new XYZ(start.X, start.Y - currentYOffsetFt, 0);
+                        double currentYOffsetBefore = currentYOffsetFt;
+                        bool appliedToCurrent = false;
+                        if (i > 0)
+                        {
+                            currentYOffsetFt += rowHFt * spacingMultiplier;
+                            appliedToCurrent = true;
+                        }
+                        double currentYOffsetAfter = currentYOffsetFt;
+                        result.Warnings.Add("[PlaceDebug] schedule=" + schedName
+                            + " | group=" + groupName
+                            + " | lineCount=" + visualLineCount
+                            + " | spacingMultiplier=" + spacingMultiplier.ToString("0.###")
+                            + " | currentYOffsetBefore=" + currentYOffsetBefore.ToString("0.######")
+                            + " | currentYOffsetAfter=" + currentYOffsetAfter.ToString("0.######")
+                            + " | appliedToCurrent=" + (appliedToCurrent ? "true" : "false"));
+                        XYZ pt = new XYZ(start.X, start.Y - currentYOffsetAfter, 0);
 
                         if (string.Equals(r.Status, "found", StringComparison.OrdinalIgnoreCase))
                         {
@@ -240,7 +261,6 @@ namespace RevitLogic.Features.ScheduleLegendGeneration
                             result.Warnings.Add("Missing DWG: " + schedName + " / " + (r.GroupName ?? ""));
                         }
 
-                        currentYOffsetFt += rowHFt * visualLineCount;
                     }
                 }
 

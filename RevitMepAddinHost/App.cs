@@ -1,5 +1,6 @@
 // RevitMepAddinHost\App.cs
 using System.Globalization;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using Autodesk.Revit.UI;
@@ -98,10 +99,15 @@ namespace RevitMepAddinHost
 
         public static void SetLegendRootFolder(string path)
         {
+            Debug.WriteLine("[HostRootDebug] incomingPath=" + (path ?? "(null)"));
             if (string.IsNullOrWhiteSpace(path))
+            {
+                Debug.WriteLine("[HostRootDebug] storedLegendDwgRootFolderText=" + (LegendDwgRootFolderText ?? "(null)"));
                 return;
+            }
 
             LegendDwgRootFolderText = path.Trim();
+            Debug.WriteLine("[HostRootDebug] storedLegendDwgRootFolderText=" + (LegendDwgRootFolderText ?? "(null)"));
             if (_legendCurrentMember != null)
             {
                 _legendCurrentMember.ItemText = LegendDwgRootFolderText;
@@ -122,6 +128,8 @@ namespace RevitMepAddinHost
         private static void OnLegendRootComboCurrentChanged(object sender, ComboBoxCurrentChangedEventArgs e)
         {
             ComboBoxMember newItem = e.NewValue;
+            Debug.WriteLine("[HostComboDebug] newItem.Name=" + (newItem == null ? "(null)" : newItem.Name));
+            Debug.WriteLine("[HostComboDebug] newItem.ItemText=" + (newItem == null ? "(null)" : newItem.ItemText));
             if (newItem == null || newItem.Name == LegendFolderCurrentMember)
                 return;
 
